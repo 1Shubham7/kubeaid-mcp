@@ -7,19 +7,6 @@ the server translates tool calls into Kubernetes API calls via `client-go`.
 
 See [design.md](./design.md) for the architecture.
 
-## Build
-
-```bash
-make build      # stamps the version from `git describe`
-# or: go build -o kubeaid-mcp .
-```
-
-Install to `$GOBIN` (a stable path for client configs):
-
-```bash
-make install    # or: go install github.com/1shubham7/kubeaid-mcp@latest
-```
-
 ## Tools
 
 | Tool | Description |
@@ -116,6 +103,36 @@ order matters:
    Linux — the process must actually exit. The server then appears under
    Settings → Developer → Local MCP servers.
 
+### Enabling writes (and protecting production)
+
+The write tools are opt-in. To enable them, add the flags to `args`. The
+example below makes the local `kind-kubeaid` cluster writable while marking a
+production context as protected, so the AI can never mutate or exec into it —
+even though writes are enabled globally:
+
+```json
+{
+  "mcpServers": {
+    "kubeaid": {
+      "command": "/absolute/path/to/kubeaid-mcp",
+      "args": [
+        "--context", "kind-kubeaid",
+        "--allow-writes",
+        "--protected-context", "prod-cluster,another-prod-cluster"
+      ]
+    }
+  }
+}
+```
+
+- Add `--allow-exec` to `args` as well if you want the `exec_command` tool.
+- `--protected-context` takes a comma-separated list; those contexts reject all
+  writes and exec regardless of `--allow-writes` / `--allow-exec`.
+- Because destructive tools carry a `DestructiveHint`, Claude Desktop still
+  prompts you to approve each risky action at call time — the flags control what
+  is *possible*; the prompt is your per-action confirmation.
+- Re-run step 3 (fully quit and reopen) after changing `args`.
+
 Notes:
 - The `command` must be an absolute path; GUI apps don't inherit your shell
   `PATH`.
@@ -128,4 +145,17 @@ Drive the server by hand (no AI client needed) to inspect the raw protocol:
 
 ```bash
 python3 scripts/drive.py   # sends initialize + tools/list + tools/call
+```
+
+## Build
+
+```bash
+make build      # stamps the version from `git describe`
+# or: go build -o kubeaid-mcp .
+```
+
+Install to `$GOBIN` (a stable path for client configs):
+
+```bash
+make install    # or: go install github.com/1shubham7/kubeaid-mcp@latest
 ```
