@@ -32,6 +32,7 @@ func registerDescribeResource(server *mcp.Server, kc *k8s.ClientManager) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "describe_resource",
 		Description: "Fetch any Kubernetes resource by kind and name, including custom resources (CRDs). Returns the resource object with noise (managedFields, last-applied annotation) stripped.",
+		Annotations: readOnly,
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in describeResourceInput) (*mcp.CallToolResult, describeResourceOutput, error) {
 		clientset, err := kc.Clientset(in.Context)
 		if err != nil {

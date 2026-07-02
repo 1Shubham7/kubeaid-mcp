@@ -34,6 +34,7 @@ func registerListDeployments(server *mcp.Server, kc *k8s.ClientManager) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_deployments",
 		Description: "List deployments in a namespace (or across all namespaces if omitted), with ready/up-to-date/available replica counts and age.",
+		Annotations: readOnly,
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in listDeploymentsInput) (*mcp.CallToolResult, listDeploymentsOutput, error) {
 		clientset, err := kc.Clientset(in.Context)
 		if err != nil {

@@ -220,6 +220,24 @@ flowchart LR
     t8 --> e8
 ```
 
+### Write tools (opt-in)
+
+The tools above are read-only and always registered. Mutating tools are
+registered only when the server is started with `--allow-writes`, and exec only
+with `--allow-exec`. Every mutation is refused on any context named in
+`--protected-context`, and each accepts `dry_run` to simulate server-side.
+Tools carry MCP annotations (`ReadOnlyHint` / `DestructiveHint`) so clients can
+prompt before risky actions.
+
+| Tool | Verb | Client |
+|------|------|--------|
+| `apply_manifest` | server-side apply (create/update) | dynamic |
+| `patch_resource` | patch (strategic/merge/json) | dynamic |
+| `delete_resource` | delete | dynamic |
+| `scale_deployment` | update scale subresource | typed |
+| `rollout_restart` | patch pod-template annotation | dynamic |
+| `exec_command` | pod exec (SPDY stream) | rest.Config |
+
 ---
 
 ## 7. Kubeconfig Auth Flow

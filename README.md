@@ -37,12 +37,36 @@ make install    # or: go install github.com/1shubham7/kubeaid-mcp@latest
 Every tool accepts an optional `context` argument to target a specific
 kubeconfig context. Omit it to use the server's default context.
 
+### Write tools (opt-in)
+
+These are registered only when `--allow-writes` is set. Each accepts an optional
+`dry_run` to simulate the change server-side without persisting it.
+
+| Tool | Description |
+|------|-------------|
+| `apply_manifest` | Create or update resources from a YAML/JSON manifest (server-side apply). |
+| `patch_resource` | Patch an existing resource (strategic / merge / json). |
+| `delete_resource` | Delete a resource by kind and name. |
+| `scale_deployment` | Set a deployment's replica count. |
+| `rollout_restart` | Rolling-restart a deployment/statefulset/daemonset. |
+| `exec_command` | Run a command inside a container (only with `--allow-exec`). |
+
 ## Safety
 
-All tools are **read-only** — they only call non-mutating Kubernetes verbs
-(get, list, watch, log). The server never creates, updates, or deletes
-resources. It authenticates with the same kubeconfig credentials you already
-use, so it can only see what your account is permitted to see.
+The server is **read-only by default** — the read tools only call non-mutating
+verbs (get, list, watch, log). Mutating tools exist but are gated:
+
+- `--allow-writes` must be set for `apply_manifest`, `patch_resource`,
+  `delete_resource`, `scale_deployment`, and `rollout_restart` to be exposed at
+  all.
+- `--allow-exec` (in addition) is required for `exec_command`.
+- `--protected-context` lists contexts that may **never** be written to or
+  exec'd into, even with the flags above — put your production contexts here.
+- Tools are annotated (`ReadOnlyHint` / `DestructiveHint`) so clients can prompt
+  before risky actions.
+
+The server authenticates with your kubeconfig credentials, so it can only do
+what your account is already permitted to do.
 
 ## Flags
 
@@ -51,6 +75,9 @@ use, so it can only see what your account is permitted to see.
 | `--kubeconfig` | `$KUBECONFIG` or `~/.kube/config` | Path to the kubeconfig file. |
 | `--context` | kubeconfig current-context | Default context; individual tool calls can override it. |
 | `--request-timeout` | `30s` | Per-request timeout for Kubernetes API calls. |
+| `--allow-writes` | `false` | Expose the mutating tools (apply/patch/delete/scale/rollout). |
+| `--allow-exec` | `false` | Expose `exec_command` (run commands in containers). |
+| `--protected-context` | none | Comma-separated contexts that may never be written to or exec'd into. |
 
 ## Connect to Claude Code
 

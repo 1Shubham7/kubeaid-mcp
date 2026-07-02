@@ -27,6 +27,7 @@ func registerListNamespaces(server *mcp.Server, kc *k8s.ClientManager) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_namespaces",
 		Description: "List all namespaces in the Kubernetes cluster, with their status.",
+		Annotations: readOnly,
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in listNamespacesInput) (*mcp.CallToolResult, listNamespacesOutput, error) {
 		clientset, err := kc.Clientset(in.Context)
 		if err != nil {

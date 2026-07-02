@@ -36,6 +36,7 @@ func registerListNodes(server *mcp.Server, kc *k8s.ClientManager) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_nodes",
 		Description: "List cluster nodes with Ready status, roles, age, kubelet version and internal IP.",
+		Annotations: readOnly,
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in listNodesInput) (*mcp.CallToolResult, listNodesOutput, error) {
 		clientset, err := kc.Clientset(in.Context)
 		if err != nil {

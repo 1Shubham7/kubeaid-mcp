@@ -18,6 +18,7 @@ func registerListContexts(server *mcp.Server, kc *k8s.ClientManager) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_contexts",
 		Description: "List the kubeconfig contexts (clusters) this server can target. The one marked isDefault is used when a tool call omits the context parameter.",
+		Annotations: readOnly,
 	}, func(_ context.Context, _ *mcp.CallToolRequest, _ listContextsInput) (*mcp.CallToolResult, listContextsOutput, error) {
 		return nil, listContextsOutput{Contexts: kc.Contexts()}, nil
 	})

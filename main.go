@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"strings"
 	"syscall"
 	"time"
 
@@ -36,19 +37,41 @@ func version() string {
 	return Version
 }
 
+// splitComma splits a comma-separated flag value into a trimmed, non-empty list.
+func splitComma(s string) []string {
+	var out []string
+	for _, part := range strings.Split(s, ",") {
+		if p := strings.TrimSpace(part); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 func main() {
 	// Logging must go to stderr: stdout carries the JSON-RPC protocol, and any
 	// stray output there corrupts message framing.
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
-	var kubeconfig, kubeContext string
+	var kubeconfig, kubeContext, protectedContexts string
 	var requestTimeout time.Duration
+	var allowWrites, allowExec bool
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "path to kubeconfig file (default: KUBECONFIG env or ~/.kube/config)")
 	flag.StringVar(&kubeContext, "context", "", "default kubeconfig context; individual tool calls may override it (default: current-context)")
 	flag.DurationVar(&requestTimeout, "request-timeout", 30*time.Second, "per-request timeout for Kubernetes API calls")
+	flag.BoolVar(&allowWrites, "allow-writes", false, "enable mutating tools (apply, patch, delete, scale, rollout restart)")
+	flag.BoolVar(&allowExec, "allow-exec", false, "enable the exec tool (run commands inside containers)")
+	flag.StringVar(&protectedContexts, "protected-context", "", "comma-separated contexts that may never be written to or exec'd into")
 	flag.Parse()
 
-	kc, err := k8s.NewClientManager(kubeconfig, kubeContext, requestTimeout)
+	kc, err := k8s.NewClientManager(k8s.Config{
+		KubeconfigPath:    kubeconfig,
+		DefaultContext:    kubeContext,
+		RequestTimeout:    requestTimeout,
+		AllowWrites:       allowWrites,
+		AllowExec:         allowExec,
+		ProtectedContexts: splitComma(protectedContexts),
+	})
 	if err != nil {
 		logger.Error("failed to load kubeconfig", "err", err)
 		os.Exit(1)
@@ -66,7 +89,9 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	logger.Info("starting kubeaid-mcp server", "version", version(), "transport", "stdio")
+	logger.Info("starting kubeaid-mcp server",
+		"version", version(), "transport", "stdio",
+		"allowWrites", allowWrites, "allowExec", allowExec)
 
 	// Run reads requests from stdin and writes responses to stdout until the
 	// client closes the connection or the context is cancelled. A cancelled

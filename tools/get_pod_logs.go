@@ -30,6 +30,7 @@ func registerGetPodLogs(server *mcp.Server, kc *k8s.ClientManager) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_pod_logs",
 		Description: "Fetch the tail of a pod's container logs. Set previous=true to read logs from a crashed container's prior instance.",
+		Annotations: readOnly,
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in getPodLogsInput) (*mcp.CallToolResult, getPodLogsOutput, error) {
 		clientset, err := kc.Clientset(in.Context)
 		if err != nil {

@@ -36,6 +36,7 @@ func registerGetEvents(server *mcp.Server, kc *k8s.ClientManager) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_events",
 		Description: "List recent events in a namespace (or across all namespaces if omitted), sorted oldest to newest. Warning-type events surface cluster problems.",
+		Annotations: readOnly,
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in getEventsInput) (*mcp.CallToolResult, getEventsOutput, error) {
 		clientset, err := kc.Clientset(in.Context)
 		if err != nil {

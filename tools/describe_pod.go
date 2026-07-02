@@ -63,6 +63,7 @@ func registerDescribePod(server *mcp.Server, kc *k8s.ClientManager) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "describe_pod",
 		Description: "Describe a pod: its status, per-container state (including waiting/termination reasons and last restart), and recent events. Use this to diagnose why a pod is not healthy.",
+		Annotations: readOnly,
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in describePodInput) (*mcp.CallToolResult, describePodOutput, error) {
 		clientset, err := kc.Clientset(in.Context)
 		if err != nil {

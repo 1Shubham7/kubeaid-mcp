@@ -35,6 +35,7 @@ func registerListPods(server *mcp.Server, kc *k8s.ClientManager) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_pods",
 		Description: "List pods in a namespace (or across all namespaces if omitted), with derived status, ready count, restarts and age.",
+		Annotations: readOnly,
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in listPodsInput) (*mcp.CallToolResult, listPodsOutput, error) {
 		clientset, err := kc.Clientset(in.Context)
 		if err != nil {
