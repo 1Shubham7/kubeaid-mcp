@@ -7,7 +7,8 @@ import (
 )
 
 // RegisterAll registers every MCP tool on the server, wiring each to the
-// Kubernetes client.
-func RegisterAll(server *mcp.Server, kc *k8s.Client) {
+// Kubernetes client manager.
+func RegisterAll(server *mcp.Server, kc *k8s.ClientManager) {
+	registerListContexts(server, kc)
 	registerListNamespaces(server, kc)
 }

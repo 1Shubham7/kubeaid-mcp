@@ -24,12 +24,12 @@ func main() {
 
 	var kubeconfig, kubeContext string
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "path to kubeconfig file (default: KUBECONFIG env or ~/.kube/config)")
-	flag.StringVar(&kubeContext, "context", "", "kubeconfig context to use (default: current-context)")
+	flag.StringVar(&kubeContext, "context", "", "default kubeconfig context; individual tool calls may override it (default: current-context)")
 	flag.Parse()
 
-	kc, err := k8s.NewClient(kubeconfig, kubeContext)
+	kc, err := k8s.NewClientManager(kubeconfig, kubeContext)
 	if err != nil {
-		logger.Error("failed to connect to Kubernetes", "err", err)
+		logger.Error("failed to load kubeconfig", "err", err)
 		os.Exit(1)
 	}
 
