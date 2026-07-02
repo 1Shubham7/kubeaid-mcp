@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -17,6 +18,7 @@ type ClientManager struct {
 	loadingRules   *clientcmd.ClientConfigLoadingRules
 	rawConfig      clientcmdapi.Config
 	defaultContext string
+	requestTimeout time.Duration
 
 	mu    sync.Mutex
 	cache map[string]*clientBundle
@@ -39,7 +41,8 @@ type ContextInfo struct {
 // NewClientManager loads the kubeconfig (empty path uses the standard
 // resolution: KUBECONFIG env, then ~/.kube/config). defaultContext is used when
 // a tool call omits one; empty falls back to the kubeconfig's current-context.
-func NewClientManager(kubeconfigPath, defaultContext string) (*ClientManager, error) {
+// requestTimeout bounds every Kubernetes API call.
+func NewClientManager(kubeconfigPath, defaultContext string, requestTimeout time.Duration) (*ClientManager, error) {
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 	if kubeconfigPath != "" {
 		loadingRules.ExplicitPath = kubeconfigPath
@@ -64,6 +67,7 @@ func NewClientManager(kubeconfigPath, defaultContext string) (*ClientManager, er
 		loadingRules:   loadingRules,
 		rawConfig:      *rawConfig,
 		defaultContext: defaultContext,
+		requestTimeout: requestTimeout,
 		cache:          make(map[string]*clientBundle),
 	}, nil
 }
@@ -125,6 +129,7 @@ func (m *ClientManager) bundle(contextName string) (*clientBundle, error) {
 	if err != nil {
 		return nil, fmt.Errorf("building config for context %q: %w", contextName, err)
 	}
+	config.Timeout = m.requestTimeout
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {

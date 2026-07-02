@@ -10,7 +10,14 @@ See [design.md](./design.md) for the architecture.
 ## Build
 
 ```bash
-go build -o kubeaid-mcp .
+make build      # stamps the version from `git describe`
+# or: go build -o kubeaid-mcp .
+```
+
+Install to `$GOBIN` (a stable path for client configs):
+
+```bash
+make install    # or: go install github.com/1shubham7/kubeaid-mcp@latest
 ```
 
 ## Tools
@@ -36,6 +43,7 @@ kubeconfig context. Omit it to use the server's default context.
 |------|---------|---------|
 | `--kubeconfig` | `$KUBECONFIG` or `~/.kube/config` | Path to the kubeconfig file. |
 | `--context` | kubeconfig current-context | Default context; individual tool calls can override it. |
+| `--request-timeout` | `30s` | Per-request timeout for Kubernetes API calls. |
 
 ## Connect to Claude Code
 
