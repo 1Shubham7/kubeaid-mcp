@@ -38,9 +38,127 @@ These are registered only when `--allow-writes` is set. Each accepts an optional
 | `rollout_restart` | Rolling-restart a deployment/statefulset/daemonset. |
 | `exec_command` | Run a command inside a container (only with `--allow-exec`). |
 
+
+## Installation
+
+Install the binary once, then register it with your AI client(s).
+
+### 1. Install the binary
+
+Pick whichever you prefer:
+
+**Go install** (requires Go 1.26+):
+
+```bash
+go install github.com/1shubham7/kubeaid-mcp@latest
+```
+
+Installs to `$(go env GOPATH)/bin` (usually `~/go/bin`) - make sure that's on
+your `PATH`.
+
+**Prebuilt release binary:** download the archive for your OS/arch from the
+[Releases](https://github.com/1shubham7/kubeaid-mcp/releases) page, then move it
+onto your `PATH`:
+
+```bash
+tar xzf kubeaid-mcp-*-linux-amd64.tar.gz
+sudo mv kubeaid-mcp /usr/local/bin/
+```
+
+**From source:**
+
+```bash
+git clone https://github.com/1shubham7/kubeaid-mcp.git
+cd kubeaid-mcp
+make install        # installs to $GOBIN / ~/go/bin (stamps the version)
+# or: make build    # just builds ./kubeaid-mcp in the repo
+```
+
+Then note the absolute path - the AI clients need it:
+
+```bash
+command -v kubeaid-mcp
+```
+
+### 2. Register with Claude Code
+
+```bash
+claude mcp add kubeaid -- "$(command -v kubeaid-mcp)" --context kind-kubeaid
+```
+
+Replace `kind-kubeaid` with your default context. Restart the Claude Code
+session to pick up the tools (or a rebuilt binary). To enable writes, append the
+flags:
+
+```bash
+claude mcp add kubeaid -- "$(command -v kubeaid-mcp)" \
+  --context kind-kubeaid --allow-writes \
+  --protected-context prod-cluster,another-prod-cluster
+```
+
+### 3. Register with Claude Desktop
+
+Recent Claude Desktop builds gate local MCP servers behind a setting, so order
+matters:
+
+1. **Enable local MCP:** Settings → Developer → **Local MCP servers**. Local
+   stdio servers are off by default; opening/enabling this is required.
+2. **Edit the config:** on that page click **Edit Config** - it opens the file
+   the app actually reads (`~/.config/Claude/claude_desktop_config.json` on
+   Linux; macOS `~/Library/Application Support/Claude/`; Windows
+   `%APPDATA%\Claude\`). Add a top-level `mcpServers` key, using the absolute
+   path from step 1:
+
+   ```json
+   {
+     "mcpServers": {
+       "kubeaid": {
+         "command": "/home/you/go/bin/kubeaid-mcp",
+         "args": ["--context", "kind-kubeaid"]
+       }
+     }
+   }
+   ```
+
+   If the file already has other keys (e.g. `preferences`), keep them and add
+   `mcpServers` alongside - don't overwrite the file.
+
+3. **Fully quit and reopen** Claude Desktop. Closing the window is not enough on
+   Linux - the process must actually exit. The server then appears under
+   Settings → Developer → Local MCP servers.
+
+**Enabling writes:** add the flags to `args` - e.g. make the local cluster
+writable while protecting production:
+
+```json
+{
+  "mcpServers": {
+    "kubeaid": {
+      "command": "/home/you/go/bin/kubeaid-mcp",
+      "args": [
+        "--context", "kind-kubeaid",
+        "--allow-writes",
+        "--protected-context", "prod-cluster,another-prod-cluster"
+      ]
+    }
+  }
+}
+```
+
+Add `--allow-exec` for the `exec_command` tool, and re-run step 3 after changing
+`args`.
+
+**Notes:**
+
+- `command` must be an absolute path; GUI apps don't inherit your shell `PATH`.
+- Destructive tools carry a `DestructiveHint`, so Desktop still prompts you per
+  action - the flags control what's *possible*; the prompt is your confirmation.
+- If your account is enterprise-managed, an admin policy can disable local MCP
+  entirely, in which case no local config will load.
+
 ## Safety
 
-The server is **read-only by default** — the read tools only call non-mutating
+The server is **read-only by default** - the read tools only call non-mutating
 verbs (get, list, watch, log). Mutating tools exist but are gated:
 
 - `--allow-writes` must be set for `apply_manifest`, `patch_resource`,
@@ -48,7 +166,7 @@ verbs (get, list, watch, log). Mutating tools exist but are gated:
   all.
 - `--allow-exec` (in addition) is required for `exec_command`.
 - `--protected-context` lists contexts that may **never** be written to or
-  exec'd into, even with the flags above — put your production contexts here.
+  exec'd into, even with the flags above - put your production contexts here.
 - Tools are annotated (`ReadOnlyHint` / `DestructiveHint`) so clients can prompt
   before risky actions.
 
@@ -66,98 +184,12 @@ what your account is already permitted to do.
 | `--allow-exec` | `false` | Expose `exec_command` (run commands in containers). |
 | `--protected-context` | none | Comma-separated contexts that may never be written to or exec'd into. |
 
-## Connect to Claude Code
-
-```bash
-claude mcp add kubeaid -- /absolute/path/to/kubeaid-mcp --context kind-kubeaid
-```
-
-Restart the Claude Code session to pick up new tools or a rebuilt binary.
-
-## Connect to Claude Desktop
-
-Recent Claude Desktop builds gate local MCP servers behind a setting, so the
-order matters:
-
-1. **Enable local MCP:** Settings → Developer → **Local MCP servers**. Local
-   stdio servers are disabled by default; opening/enabling this is required.
-2. **Edit the config:** on that same page click **Edit Config**. It opens the
-   file the app actually reads — `~/.config/Claude/claude_desktop_config.json`
-   on Linux (macOS: `~/Library/Application Support/Claude/`, Windows:
-   `%APPDATA%\Claude\`). Add a top-level `mcpServers` key:
-
-   ```json
-   {
-     "mcpServers": {
-       "kubeaid": {
-         "command": "/absolute/path/to/kubeaid-mcp",
-         "args": ["--context", "kind-kubeaid"]
-       }
-     }
-   }
-   ```
-
-   If the file already has other keys (e.g. `preferences`), keep them and add
-   `mcpServers` alongside — don't overwrite the file.
-3. **Fully quit and reopen** Claude Desktop. Closing the window is not enough on
-   Linux — the process must actually exit. The server then appears under
-   Settings → Developer → Local MCP servers.
-
-### Enabling writes (and protecting production)
-
-The write tools are opt-in. To enable them, add the flags to `args`. The
-example below makes the local `kind-kubeaid` cluster writable while marking a
-production context as protected, so the AI can never mutate or exec into it —
-even though writes are enabled globally:
-
-```json
-{
-  "mcpServers": {
-    "kubeaid": {
-      "command": "/absolute/path/to/kubeaid-mcp",
-      "args": [
-        "--context", "kind-kubeaid",
-        "--allow-writes",
-        "--protected-context", "prod-cluster,another-prod-cluster"
-      ]
-    }
-  }
-}
-```
-
-- Add `--allow-exec` to `args` as well if you want the `exec_command` tool.
-- `--protected-context` takes a comma-separated list; those contexts reject all
-  writes and exec regardless of `--allow-writes` / `--allow-exec`.
-- Because destructive tools carry a `DestructiveHint`, Claude Desktop still
-  prompts you to approve each risky action at call time — the flags control what
-  is *possible*; the prompt is your per-action confirmation.
-- Re-run step 3 (fully quit and reopen) after changing `args`.
-
-Notes:
-- The `command` must be an absolute path; GUI apps don't inherit your shell
-  `PATH`.
-- If your account is enterprise-managed, an admin policy can disable local MCP
-  entirely, in which case no local config will load.
-
 ## Development
 
 Drive the server by hand (no AI client needed) to inspect the raw protocol:
 
 ```bash
 python3 scripts/drive.py   # sends initialize + tools/list + tools/call
-```
-
-## Build
-
-```bash
-make build      # stamps the version from `git describe`
-# or: go build -o kubeaid-mcp .
-```
-
-Install to `$GOBIN` (a stable path for client configs):
-
-```bash
-make install    # or: go install github.com/1shubham7/kubeaid-mcp@latest
 ```
 
 ## Releasing
@@ -171,5 +203,5 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-No extra secrets are needed — the release workflow uses the built-in
+No extra secrets are needed - the release workflow uses the built-in
 `GITHUB_TOKEN`.
