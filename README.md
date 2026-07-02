@@ -159,3 +159,17 @@ Install to `$GOBIN` (a stable path for client configs):
 ```bash
 make install    # or: go install github.com/1shubham7/kubeaid-mcp@latest
 ```
+
+## Releasing
+
+CI runs vet + build + tests on every push and PR to `main`. Pushing a `v*` tag
+triggers a GoReleaser run that builds cross-platform binaries (linux/darwin/
+windows, amd64/arm64) and publishes a GitHub Release with a changelog:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+No extra secrets are needed — the release workflow uses the built-in
+`GITHUB_TOKEN`.
