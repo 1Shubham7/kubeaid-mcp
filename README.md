@@ -22,6 +22,10 @@ go build -o kubeaid-mcp .
 | `list_pods` | List pods in a namespace (or all namespaces), with derived status, ready count, restarts and age. |
 | `describe_pod` | Pod status, per-container state (waiting/termination reasons, last restart), and recent events. |
 | `get_pod_logs` | Tail a container's logs; `previous: true` reads a crashed instance's prior logs. |
+| `list_deployments` | List deployments with ready/up-to-date/available replica counts and age. |
+| `list_nodes` | List cluster nodes with Ready status, roles, version and internal IP. |
+| `get_events` | Recent events in a namespace (or all), sorted oldest to newest. |
+| `describe_resource` | Fetch any resource kind (incl. CRDs) by kind/plural/short-name and name, via the dynamic client. |
 
 Every tool accepts an optional `context` argument to target a specific
 kubeconfig context. Omit it to use the server's default context.

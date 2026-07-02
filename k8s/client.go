@@ -5,20 +5,28 @@ import (
 	"sort"
 	"sync"
 
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
-// ClientManager resolves and caches one Kubernetes clientset per kubeconfig
-// context, so a single running server can serve any cluster in the kubeconfig.
+// ClientManager resolves and caches Kubernetes clients per kubeconfig context,
+// so a single running server can serve any cluster in the kubeconfig.
 type ClientManager struct {
 	loadingRules   *clientcmd.ClientConfigLoadingRules
 	rawConfig      clientcmdapi.Config
 	defaultContext string
 
 	mu    sync.Mutex
-	cache map[string]kubernetes.Interface
+	cache map[string]*clientBundle
+}
+
+// clientBundle holds the clients built from one context's rest.Config. Building
+// them does no network I/O; a connection is only made when a client is used.
+type clientBundle struct {
+	clientset kubernetes.Interface
+	dynamic   dynamic.Interface
 }
 
 // ContextInfo describes one kubeconfig context.
@@ -56,7 +64,7 @@ func NewClientManager(kubeconfigPath, defaultContext string) (*ClientManager, er
 		loadingRules:   loadingRules,
 		rawConfig:      *rawConfig,
 		defaultContext: defaultContext,
-		cache:          make(map[string]kubernetes.Interface),
+		cache:          make(map[string]*clientBundle),
 	}, nil
 }
 
@@ -77,10 +85,27 @@ func (m *ClientManager) Contexts() []ContextInfo {
 	return out
 }
 
-// Clientset returns a clientset for the named context, building and caching it
-// on first use. An empty name uses the default context. The clientset connects
-// lazily, so an unreachable cluster only errors when a tool actually calls it.
+// Clientset returns the typed clientset for the named context (empty = default).
 func (m *ClientManager) Clientset(contextName string) (kubernetes.Interface, error) {
+	b, err := m.bundle(contextName)
+	if err != nil {
+		return nil, err
+	}
+	return b.clientset, nil
+}
+
+// DynamicClient returns the dynamic (untyped) client for the named context,
+// used to read arbitrary resource kinds including CRDs.
+func (m *ClientManager) DynamicClient(contextName string) (dynamic.Interface, error) {
+	b, err := m.bundle(contextName)
+	if err != nil {
+		return nil, err
+	}
+	return b.dynamic, nil
+}
+
+// bundle builds and caches the clients for a context on first use.
+func (m *ClientManager) bundle(contextName string) (*clientBundle, error) {
 	if contextName == "" {
 		contextName = m.defaultContext
 	}
@@ -88,8 +113,8 @@ func (m *ClientManager) Clientset(contextName string) (kubernetes.Interface, err
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if cs, ok := m.cache[contextName]; ok {
-		return cs, nil
+	if b, ok := m.cache[contextName]; ok {
+		return b, nil
 	}
 	if _, ok := m.rawConfig.Contexts[contextName]; !ok {
 		return nil, fmt.Errorf("context %q not found in kubeconfig", contextName)
@@ -101,11 +126,16 @@ func (m *ClientManager) Clientset(contextName string) (kubernetes.Interface, err
 		return nil, fmt.Errorf("building config for context %q: %w", contextName, err)
 	}
 
-	cs, err := kubernetes.NewForConfig(config)
+	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("building clientset for context %q: %w", contextName, err)
 	}
+	dyn, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("building dynamic client for context %q: %w", contextName, err)
+	}
 
-	m.cache[contextName] = cs
-	return cs, nil
+	b := &clientBundle{clientset: clientset, dynamic: dyn}
+	m.cache[contextName] = b
+	return b, nil
 }
