@@ -38,6 +38,18 @@ These are registered only when `--allow-writes` is set. Each accepts an optional
 | `rollout_restart` | Rolling-restart a deployment/statefulset/daemonset. |
 | `exec_command` | Run a command inside a container (only with `--allow-exec`). |
 
+## Prompts
+
+Prompts are user-invoked workflow templates (surfaced as slash commands / menu
+items in the client). Unlike tools, a prompt does not touch the cluster — it
+returns a message that guides the model through a task using the tools above.
+
+| Prompt | Arguments | What it does |
+|--------|-----------|--------------|
+| `diagnose_pod` | `namespace`, `pod_name`, `context?` | Walk through describe → logs to find why a pod is unhealthy and suggest a fix. |
+| `triage_namespace` | `namespace`, `context?` | Find every unhealthy workload in a namespace and investigate each. |
+| `cluster_health_check` | `context?` | High-level health sweep: nodes, pods across all namespaces, recent warnings. |
+| `review_warnings` | `namespace?`, `context?` | Review recent Warning events and explain what they mean. |
 
 ## Installation
 
