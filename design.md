@@ -19,7 +19,7 @@ C4Context
 
     System(ai_client, "AI Client", "Claude Desktop, Claude Code, Cursor, or any MCP-compatible app")
 
-    System(mcp_server, "k8s-mcp-server", "Go binary on the user's laptop. Translates MCP tool calls into Kubernetes API calls.")
+    System(mcp_server, "kubeaid-mcp", "Go binary on the user's laptop. Translates MCP tool calls into Kubernetes API calls.")
 
     System_Ext(k8s, "Kubernetes Cluster", "Any cluster the user's kubeconfig points at — Hetzner, GKE, kind, etc.")
 
@@ -38,7 +38,7 @@ What happens from the moment a user types a question to when they get an answer.
 sequenceDiagram
     actor User
     participant Claude as AI Client<br/>(Claude Desktop)
-    participant MCP as k8s-mcp-server<br/>(Go binary / stdio)
+    participant MCP as kubeaid-mcp<br/>(Go binary / stdio)
     participant K8s as kube-apiserver<br/>(HTTPS :6443)
 
     User->>Claude: "Why is my nginx pod crashing in staging?"
@@ -72,12 +72,12 @@ What happens at the transport level when the AI client first spawns your binary.
 ```mermaid
 sequenceDiagram
     participant Client as AI Client
-    participant Server as k8s-mcp-server
+    participant Server as kubeaid-mcp
 
     Note over Client: Reads claude_desktop_config.json,<br/>spawns the binary as a subprocess
 
     Client->>Server: initialize {protocolVersion, capabilities}
-    Server-->>Client: {serverInfo: {name: "k8s-mcp-server"}, capabilities: {tools: {}}}
+    Server-->>Client: {serverInfo: {name: "kubeaid-mcp"}, capabilities: {tools: {}}}
 
     Client->>Server: notifications/initialized
     Note over Client,Server: Handshake complete — normal operation begins
@@ -96,10 +96,11 @@ How the Go binary is structured internally.
 
 ```mermaid
 flowchart TD
-    subgraph binary ["k8s-mcp-server binary"]
+    subgraph binary ["kubeaid-mcp binary"]
         main["main.go\n─────────\nParse flags\nBuild kubeconfig\nRegister tools\nserver.Run()"]
 
         subgraph tools ["tools/ package"]
+            t0["list_contexts.go"]
             t1["list_namespaces.go"]
             t2["list_pods.go"]
             t3["describe_pod.go"]
@@ -111,7 +112,7 @@ flowchart TD
         end
 
         subgraph k8sclient ["k8s/ package"]
-            kc["client.go\n─────────\nNewClient()\nInClusterConfig()\nBuildFromFlags()"]
+            kc["client.go — ClientManager\n─────────\nNewClientManager()\nClientset(context)\nDynamicClient(context)\nper-context client cache"]
         end
 
         sdk["go-sdk\n(github.com/modelcontextprotocol/go-sdk)\n─────────\nStdioTransport\nmcp.AddTool()\nJSON-RPC framing"]
@@ -132,7 +133,12 @@ flowchart TD
 
 ## 5. Multi-Cluster Configuration
 
-How one binary supports multiple clusters via kubeconfig contexts.
+A single server process serves every cluster in the kubeconfig. Rather than
+launching one process per cluster, the server exposes a `list_contexts` tool and
+gives every other tool an optional `context` parameter, so the AI picks the
+cluster at call time. The `--context` flag only sets the *default* used when a
+call omits one. Clients are built and cached per context on first use, so
+switching clusters mid-conversation needs no restart.
 
 ```mermaid
 flowchart LR
@@ -142,16 +148,13 @@ flowchart LR
         ctx3["context: kind-local"]
     end
 
-    subgraph claude_config ["claude_desktop_config.json"]
-        s1["k8s-prod\n→ k8s-mcp-server --context prod-hetzner"]
-        s2["k8s-staging\n→ k8s-mcp-server --context staging-hetzner"]
-        s3["k8s-local\n→ k8s-mcp-server --context kind-local"]
+    subgraph claude_config ["client config (one entry)"]
+        s1["kubeaid\n→ kubeaid-mcp --context kind-local"]
     end
 
-    subgraph processes ["3 separate server processes (one per cluster)"]
-        p1["k8s-mcp-server\n(prod)"]
-        p2["k8s-mcp-server\n(staging)"]
-        p3["k8s-mcp-server\n(local)"]
+    subgraph process ["1 server process (context-aware)"]
+        p1["kubeaid-mcp"]
+        cache["per-context client cache\nprod → clientset+dynamic\nstaging → clientset+dynamic\nlocal → clientset+dynamic"]
     end
 
     subgraph clusters ["Kubernetes Clusters"]
@@ -161,38 +164,41 @@ flowchart LR
     end
 
     s1 -->|spawns| p1
-    s2 -->|spawns| p2
-    s3 -->|spawns| p3
+    p1 --> cache
+    cache -->|reads| ctx1
+    cache -->|reads| ctx2
+    cache -->|reads| ctx3
 
-    p1 -->|reads| ctx1
-    p2 -->|reads| ctx2
-    p3 -->|reads| ctx3
-
-    p1 --> c1
-    p2 --> c2
-    p3 --> c3
+    cache --> c1
+    cache --> c2
+    cache --> c3
 ```
 
 ---
 
 ## 6. Tool Inventory
 
-Every tool the server exposes and what Kubernetes API endpoint it calls.
+Every tool the server exposes and what it calls. All tools additionally accept
+an optional `context` parameter to target a specific kubeconfig context; the
+`namespace` parameter is optional on the list tools (omit to span all
+namespaces).
 
 ```mermaid
 flowchart LR
     subgraph tools ["MCP Tools (read-only)"]
+        t0["list_contexts\nparams: none"]
         t1["list_namespaces\nparams: none"]
-        t2["list_pods\nparams: namespace"]
+        t2["list_pods\nparams: namespace?"]
         t3["describe_pod\nparams: namespace, pod_name"]
-        t4["get_pod_logs\nparams: namespace, pod_name, lines, container"]
-        t5["list_deployments\nparams: namespace"]
+        t4["get_pod_logs\nparams: namespace, pod_name, lines?, container?, previous?"]
+        t5["list_deployments\nparams: namespace?"]
         t6["list_nodes\nparams: none"]
-        t7["get_events\nparams: namespace"]
-        t8["describe_resource\nparams: kind, name, namespace"]
+        t7["get_events\nparams: namespace?"]
+        t8["describe_resource\nparams: kind, name, namespace?, api_version?"]
     end
 
     subgraph k8s_api ["Kubernetes API Endpoints"]
+        e0["reads kubeconfig (no API call)"]
         e1["GET /api/v1/namespaces"]
         e2["GET /api/v1/namespaces/{ns}/pods"]
         e3["GET /api/v1/namespaces/{ns}/pods/{name}"]
@@ -200,9 +206,10 @@ flowchart LR
         e5["GET /apis/apps/v1/namespaces/{ns}/deployments"]
         e6["GET /api/v1/nodes"]
         e7["GET /api/v1/namespaces/{ns}/events"]
-        e8["GET /apis/{group}/{version}/namespaces/{ns}/{kind}/{name}"]
+        e8["dynamic client + discovery\nresolves any kind → GET"]
     end
 
+    t0 --> e0
     t1 --> e1
     t2 --> e2
     t3 --> e3
@@ -217,20 +224,19 @@ flowchart LR
 
 ## 7. Kubeconfig Auth Flow
 
-How the server authenticates to the Kubernetes API — two cases.
+How the server authenticates to the Kubernetes API. It uses the kubeconfig on
+disk (the same credentials `kubectl` uses); in-cluster service-account auth is a
+possible future addition, not yet implemented.
 
 ```mermaid
 flowchart TD
-    start["server starts\n--kubeconfig flag?"]
+    start["server starts\nload kubeconfig"]
 
-    start -->|"--kubeconfig /path/to/config\n(or default ~/.kube/config)"| local["BuildConfigFromFlags()\n─────────────────\nReads kubeconfig file\nPicks context from --context flag\nLoads: API server URL, client cert/key or token"]
+    start -->|"clientcmd loading rules\n(--kubeconfig, else KUBECONFIG, else ~/.kube/config)"| local["ClientConfig with context override\n─────────────────\nReads kubeconfig file\nApplies per-call context (or default)\nSets request timeout\nLoads: API server URL, client cert/key or token"]
 
-    start -->|"no flag + running inside a pod"| incluster["rest.InClusterConfig()\n─────────────────\nReads /var/run/secrets/kubernetes.io/serviceaccount/token\nReads /var/run/secrets/kubernetes.io/serviceaccount/ca.crt\nAPI server: kubernetes.default.svc"]
+    local --> clientset["kubernetes.NewForConfig(config)\ndynamic.NewForConfig(config)\n→ typed + dynamic clients, cached per context"]
 
-    local --> clientset["kubernetes.NewForConfig(config)\n→ typed clientset ready"]
-    incluster --> clientset
-
-    clientset --> calls["Tool handlers call:\nclientset.CoreV1().Pods(ns).List()\nclientset.AppsV1().Deployments(ns).List()\netc."]
+    clientset --> calls["Tool handlers call:\nclientset.CoreV1().Pods(ns).List()\nclientset.AppsV1().Deployments(ns).List()\ndynamic client for describe_resource\netc."]
 ```
 
 ---
@@ -241,9 +247,9 @@ How a user gets this running in under 2 minutes.
 
 ```mermaid
 flowchart LR
-    A["go install\ngithub.com/1Shubham7/k8s-mcp-server@latest"]
-    B["Edit claude_desktop_config.json\nadd one block per cluster"]
-    C["Restart Claude Desktop"]
+    A["go install\ngithub.com/1shubham7/kubeaid-mcp@latest"]
+    B["Register the server once\n(Claude Code: claude mcp add;\nClaude Desktop: enable local MCP,\nEdit Config, add one entry)"]
+    C["Restart the client"]
     D["Ask Claude:\n'list my pods in staging'"]
 
     A --> B --> C --> D

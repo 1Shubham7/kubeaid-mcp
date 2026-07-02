@@ -37,6 +37,13 @@ make install    # or: go install github.com/1shubham7/kubeaid-mcp@latest
 Every tool accepts an optional `context` argument to target a specific
 kubeconfig context. Omit it to use the server's default context.
 
+## Safety
+
+All tools are **read-only** — they only call non-mutating Kubernetes verbs
+(get, list, watch, log). The server never creates, updates, or deletes
+resources. It authenticates with the same kubeconfig credentials you already
+use, so it can only see what your account is permitted to see.
+
 ## Flags
 
 | Flag | Default | Meaning |
