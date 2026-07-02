@@ -1,0 +1,5 @@
+# Compiled binary
+/kubeaid-mcp
+
+# Go build/test artifacts
+*.out
