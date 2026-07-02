@@ -191,17 +191,3 @@ Drive the server by hand (no AI client needed) to inspect the raw protocol:
 ```bash
 python3 scripts/drive.py   # sends initialize + tools/list + tools/call
 ```
-
-## Releasing
-
-CI runs vet + build + tests on every push and PR to `main`. Pushing a `v*` tag
-triggers a GoReleaser run that builds cross-platform binaries (linux/darwin/
-windows, amd64/arm64) and publishes a GitHub Release with a changelog:
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-No extra secrets are needed - the release workflow uses the built-in
-`GITHUB_TOKEN`.
