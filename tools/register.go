@@ -11,4 +11,7 @@ import (
 func RegisterAll(server *mcp.Server, kc *k8s.ClientManager) {
 	registerListContexts(server, kc)
 	registerListNamespaces(server, kc)
+	registerListPods(server, kc)
+	registerDescribePod(server, kc)
+	registerGetPodLogs(server, kc)
 }
