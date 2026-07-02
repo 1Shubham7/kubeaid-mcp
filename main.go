@@ -19,6 +19,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/1shubham7/kubeaid-mcp/k8s"
+	"github.com/1shubham7/kubeaid-mcp/prompts"
 	"github.com/1shubham7/kubeaid-mcp/tools"
 )
 
@@ -83,6 +84,7 @@ func main() {
 	}, nil)
 
 	tools.RegisterAll(server, kc)
+	prompts.RegisterAll(server)
 
 	// Cancel the run context on Ctrl-C / SIGTERM so the server shuts down
 	// cleanly instead of being force-killed mid-request.
