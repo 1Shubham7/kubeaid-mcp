@@ -95,16 +95,21 @@ command -v kubeaid-mcp
 ### 2. Register with Claude Code
 
 ```bash
-claude mcp add kubeaid -- "$(command -v kubeaid-mcp)" --context kind-kubeaid
+claude mcp add kubeaid -- "$(command -v kubeaid-mcp)"
 ```
 
-Replace `kind-kubeaid` with your default context. Restart the Claude Code
-session to pick up the tools (or a rebuilt binary). To enable writes, append the
-flags:
+With no `--context`, the server follows your kubeconfig's current-context live,
+so `kubectl config use-context <name>` switches the target cluster without
+re-registering. Pin a fixed default with `--context kind-kubeaid` if you'd
+rather it never move.
+
+Read tools only are exposed by default. To enable the mutating tools
+(apply/patch/delete/scale/rollout), add `--allow-writes`, and list any
+production contexts as protected so they can never be written to:
 
 ```bash
 claude mcp add kubeaid -- "$(command -v kubeaid-mcp)" \
-  --context kind-kubeaid --allow-writes \
+  --allow-writes \
   --protected-context prod-cluster,another-prod-cluster
 ```
 
@@ -125,8 +130,7 @@ matters:
    {
      "mcpServers": {
        "kubeaid": {
-         "command": "/home/you/go/bin/kubeaid-mcp",
-         "args": ["--context", "kind-kubeaid"]
+         "command": "/home/you/go/bin/kubeaid-mcp"
        }
      }
    }
@@ -190,7 +194,7 @@ what your account is already permitted to do.
 | Flag | Default | Meaning |
 |------|---------|---------|
 | `--kubeconfig` | `$KUBECONFIG` or `~/.kube/config` | Path to the kubeconfig file. |
-| `--context` | kubeconfig current-context | Default context; individual tool calls can override it. |
+| `--context` | follows kubeconfig current-context (live) | Pin a fixed default context. Omit it to track current-context live, so `kubectl config use-context` switches the cluster mid-session. Individual tool calls can always override it. |
 | `--request-timeout` | `30s` | Per-request timeout for Kubernetes API calls. |
 | `--allow-writes` | `false` | Expose the mutating tools (apply/patch/delete/scale/rollout). |
 | `--allow-exec` | `false` | Expose `exec_command` (run commands in containers). |

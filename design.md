@@ -137,8 +137,11 @@ A single server process serves every cluster in the kubeconfig. Rather than
 launching one process per cluster, the server exposes a `list_contexts` tool and
 gives every other tool an optional `context` parameter, so the AI picks the
 cluster at call time. The `--context` flag only sets the *default* used when a
-call omits one. Clients are built and cached per context on first use, so
-switching clusters mid-conversation needs no restart.
+call omits one; when the flag is omitted, the default tracks the kubeconfig's
+current-context live (re-read from disk each call), so `kubectl config
+use-context` switches the target mid-session without a restart. Clients are
+built and cached per context on first use, so switching clusters
+mid-conversation needs no restart.
 
 ```mermaid
 flowchart LR
