@@ -1,16 +1,5 @@
 # kubeaid-mcp - 2-minute demo
 
-A tight script for a ~2-minute screen recording: what the project is, how it's
-set up, and two realistic tasks run across **two clusters** entirely from a
-Claude chat window - diagnosing and fixing a broken database, then provisioning
-and decommissioning an app on a second cluster.
-
-The star points to land: this drives **real Kubernetes operations** (not just
-reads), **across multiple clusters**, with **safety gates** - the kind of work
-an on-call engineer does, done from natural language.
-
----
-
 ## The pitch (say this at the top, ~15s)
 
 > "kubeaid-mcp is an MCP server that plugs a Kubernetes cluster straight into
@@ -142,8 +131,8 @@ prompt:
 
 > **Type:** `list all the contexts you can reach, and show me the nodes of the current one`
 
-Claude calls `list_contexts` + `list_nodes`. You've shown multi-cluster and a
-live read in one shot.
+Claude lists both clusters it can reach and the nodes of the current one -
+multi-cluster reach, shown in one shot.
 
 ### 0:20 - 1:00 · Task 1 (kind-dev): find and fix the crashing database
 
@@ -152,21 +141,21 @@ chat.
 
 > **Type:** `Something is wrong in the payments namespace - a pod won't stay up. Find out why and fix it.`
 
-What the audience watches Claude do:
-- `list_pods` / `describe_pod` → spots `postgres` in CrashLoopBackOff
-- `get_pod_logs` → surfaces the real error:
+What the audience watches Claude do, on its own:
+- finds `postgres` stuck in CrashLoopBackOff
+- reads the container's crash logs and surfaces the real error:
   *"Database is uninitialized and superuser password is not specified..."*
 - explains the root cause in plain English
-- `patch_resource` → adds the missing `POSTGRES_PASSWORD` env var
-- (Claude Desktop pops a confirm because the tool is a write - **click Allow**
-  on camera; that's your safety story, live)
+- patches the live deployment to add the missing `POSTGRES_PASSWORD`
+- Claude Desktop asks you to confirm before it changes anything - **click Allow**
+  on camera; that's your safety story, live
 
 Then verify:
 
 > **Type:** `confirm it recovered`
 
-Claude re-runs `list_pods` → `postgres` is now **Running / 1/1 Ready**. Broken
-DB fixed without a single kubectl command.
+Claude re-checks and `postgres` is now **Running / 1/1 Ready**. Broken DB fixed
+without a single kubectl command.
 
 > Say: *"It read the crash logs, told me the cause, and patched the live
 > deployment - and asked my permission before it changed anything."*
@@ -191,16 +180,15 @@ Full lifecycle on the second cluster.
 
 > **Type:** `Deploy a web app on this cluster: namespace "storefront", an nginx deployment called web with 2 replicas, and a Service in front of it. Then show me it's healthy.`
 
-Claude generates the manifests and `apply_manifest`s them (one Allow click),
-then `list_pods` / `list_deployments` → **2/2 ready**, Service created. A real
-app, stood up from one sentence.
+Claude writes the manifests and applies them (one Allow click), then checks the
+rollout → **2/2 ready**, Service created. A real app, stood up from one sentence.
 
 Now tear it down cleanly:
 
 > **Type:** `We're decommissioning storefront. Delete the whole namespace and confirm it's gone.`
 
-Claude `delete_resource` on the namespace (Allow click - a **destructive**
-action, so the prompt is loud), then `list_namespaces` → `storefront` is gone.
+Claude deletes the whole namespace (Allow click - a **destructive** action, so
+the confirmation is loud), then verifies `storefront` is gone.
 
 > Say: *"Deploy and cleanup, on a different cluster, in two sentences."*
 
@@ -244,6 +232,6 @@ kind delete cluster --name prod
 - Keep the Claude Desktop confirm dialogs **in frame** - they *are* the safety
   story; don't hide them.
 - If a step is slow, you pre-verified state in setup, so you can narrate over it.
-- Want the prompt-primitive on camera too? Swap prompt #2 for the shipped
-  `/diagnose_pod` slash command (`namespace: payments`, `pod_name:` the crashing
-  pod) - it drives the same investigation from a one-click template.
+- For an even slicker take, swap prompt #2 for the shipped `/diagnose_pod`
+  slash command (`namespace: payments`, `pod_name:` the crashing pod) - same
+  investigation, kicked off in one click.
