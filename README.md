@@ -7,6 +7,10 @@ the server translates tool calls into Kubernetes API calls via `client-go`.
 
 See [design.md](./design.md) for the architecture.
 
+## Demo
+
+[![kubeaid-mcp demo](https://img.youtube.com/vi/QFLlo8RDWf8/maxresdefault.jpg)](https://www.youtube.com/watch?v=QFLlo8RDWf8)
+
 ## Tools
 
 | Tool | Description |
